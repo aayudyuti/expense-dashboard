@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Performance Dashboard</title>
+    <!-- Plotly.js CDN -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        #uploadBtn {
+            margin-bottom: 20px;
+        }
+        .chart-container {
+            width: 100%;
+            height: 400px;
+            margin-bottom: 40px;
+        }
+        .header {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="header">Insights</h1>
+    <input type="file" id="uploadBtn" accept=".json">
+
+    <div id="categoryDonutChart" class="chart-container"></div>
+    <div id="monthlyExpenseTrendChart" class="chart-container"></div>
+    <div id="paymentModeChart" class="chart-container"></div>
+    <div id="incomeExpenseChart" class="chart-container"></div>
+    <div id="locationChart" class="chart-container"></div>
+
+    <script>
+        document.getElementById("uploadBtn").addEventListener("change", function(event) {
+            const file = event.target.files[0];
+            if (file && file.type === "application/json") {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const data = JSON.parse(e.target.result);
+                    generateDashboard(data);
+                };
+                reader.readAsText(file);
+            } else {
+                alert("Please upload a valid JSON file.");
+            }
+        });
+
+        function generateDashboard(data) {
+            const categories = {};
+            const paymentModes = {};
+            const monthlyExpenditure = {};
+            const monthlyIncome = {};
+            const locations = {};
+
+            data.forEach(txn => {
+                const category = txn.Category;
+                const mode = txn.Mode;
+                const date = new Date(txn.Date);
+                const month = date.toISOString().slice(0, 7);
+                const amount = txn.Amount;
+                const location = txn.Location;
+                const type = txn["Income/Expense"];
+
+                // Categories
+                if (type === "Debit") {
+                    categories[category] = (categories[category] || 0) + amount;
+                }
+
+                // Payment Modes
+                paymentModes[mode] = (paymentModes[mode] || 0) + amount;
+
+                // Monthly Expenditure and Income
+                if (type === "Debit") {
+                    monthlyExpenditure[month] = (monthlyExpenditure[month] || 0) + amount;
+                } else {
+                    monthlyIncome[month] = (monthlyIncome[month] || 0) + amount;
+                }
+
+                // Location
+                locations[location] = (locations[location] || 0) + amount;
+            });
+
+            const months = Array.from(new Set([...Object.keys(monthlyExpenditure), ...Object.keys(monthlyIncome)])).sort();
+
+            // Donut Chart for Categories
+            Plotly.newPlot("categoryDonutChart", [{
+                labels: Object.keys(categories),
+                values: Object.values(categories),
+                type: 'pie',
+                hole: .4
+            }], {
+                title: "Expenditure by Category (Donut Chart)"
+            });
+
+            // Line Chart for Expense Trends
+            Plotly.newPlot("monthlyExpenseTrendChart", [{
+                x: months,
+                y: months.map(m => monthlyExpenditure[m] || 0),
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: 'orange' },
+                name: 'Expenditure'
+            }], {
+                title: "Monthly Expense Trend"
+            });
+
+            // Payment Mode Pie Chart
+            Plotly.newPlot("paymentModeChart", [{
+                labels: Object.keys(paymentModes),
+                values: Object.values(paymentModes),
+                type: 'pie'
+            }], {
+                title: "Spending by Payment Mode"
+            });
+
+            // Income vs Expense (Grouped Bar Chart)
+            Plotly.newPlot("incomeExpenseChart", [
+                {
+                    x: months,
+                    y: months.map(m => monthlyIncome[m] || 0),
+                    name: 'Income',
+                    type: 'bar',
+                    marker: {color: 'green'}
+                },
+                {
+                    x: months,
+                    y: months.map(m => monthlyExpenditure[m] || 0),
+                    name: 'Expenditure',
+                    type: 'bar',
+                    marker: {color: 'red'}
+                }
+            ], {
+                barmode: 'group',
+                title: "Income vs Expenditure Comparison"
+            });
+
+            // Location Bar Chart
+            Plotly.newPlot("locationChart", [{
+                x: Object.keys(locations),
+                y: Object.values(locations),
+                type: 'bar',
+                marker: {color: 'purple'}
+            }], {
+                title: "Geographical Spending Distribution"
+            });
+        }
+    </script>
+</body>
+</html>
